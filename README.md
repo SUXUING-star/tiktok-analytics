@@ -1,8 +1,7 @@
-# React + Vite
+# 解放双手小项目
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+麻烦的tableau拖拉拖拉流水线操作拜拜了~~
 
-Currently, two official plugins are available:
+俺这有个更加白痴的一键生成图标的，嘿嘿。
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+前提是文件必须符合规范，注意~~
