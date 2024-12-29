@@ -326,6 +326,9 @@ const TikTokAnalytics = () => {
         <div className="container mx-auto px-4 flex items-center justify-center">
           <h1 className="text-3xl font-bold">TikTok数据分析工具</h1>
         </div>
+        <div className="container mx-auto px-4 flex justify-center">
+          <img src="/header.gif" alt="header" className="block max-h-32 mx-auto mt-2 loading-lazy"/>
+        </div>
       </header>
 
       <div className="flex flex-col flex-1">
