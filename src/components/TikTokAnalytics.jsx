@@ -2,16 +2,17 @@ import React, { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import * as XLSX from 'xlsx';
+import DataPreprocessor from './DataPreprocessor'; // 导入数据预处理组件
 
 const TikTokAnalytics = () => {
   const [totalData, setTotalData] = useState(null);
   const [productsData, setProductsData] = useState(null);
   const [productTotalData, setProductTotalData] = useState(null);
-  const [activeTab, setActiveTab] = useState('charts'); // 'charts' or 'stats'
+  const [activeTab, setActiveTab] = useState('charts'); // 'charts', 'stats', 或 'preprocess'
 
   // 颜色常量
   const COLORS = {
-     blue: '#4096ff',
+    blue: '#4096ff',
     green: '#52c41a',
     orange: '#fa8c16',
     purple: '#722ed1',
@@ -23,115 +24,103 @@ const TikTokAnalytics = () => {
     const date = new Date(dateStr);
     return `${date.getMonth() + 1}/${date.getDate()}`;
   };
-      const processFile = async (file, fileType) => {
-      try {
-          const buffer = await file.arrayBuffer();
-          const workbook = XLSX.read(buffer, {
-              type: 'array',
-              cellDates: true,
-              cellNF: true,
-              cellStyles: true
-          });
-      
-          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-          const data = XLSX.utils.sheet_to_json(firstSheet);
-          
-           // 针对 productTotal 文件进行数据处理
-           if (fileType === 'productTotal') {
-            let gmvKey = null;
-             for (const key in data[0]) {
-                if (key.toLowerCase().includes("gmv")||key.toLowerCase().includes("商品交易总额")) {
-                    gmvKey = key;
-                  break;
-             }
-           }
-            console.log(`Found GMV key: ${gmvKey}`);
-             const processedData = data.map(item => {
-              const gmvValue = parseFloat(item[gmvKey]) || 0;
-              console.log(`Product: ${item['Name of product']}, GMV: ${gmvValue}`);
-                return{
-                 name: item['Name of product'],
-                 曝光人数: item['曝光用户数'],
-                 点击人数: item['点击人数'],
-                 加车人数: item['加车人数'],
-                 支付人数: item['支付人数'],
-                '曝光到点击': parseFloat(item['曝光到点击转化率']) || 0,
-                '点击到加车': parseFloat(item['点击到加车转化率']) || 0,
-                 '加车到成交': parseFloat(item['加车到成交转化率']) || 0,
-                 '商品交易总额 (₱)': gmvValue
-                }
-              });
-                setProductTotalData(processedData);
-                return;
-        }
-          
-          switch(fileType) {
-              case 'total':
-                  setTotalData(data);
-                  break;
-              case 'products':
-                  setProductsData(data);
-                  break;
-              case 'productTotal':
-                  setProductTotalData(data);
-                  break;
-          }
-      } catch (error) {
-          console.error('Error processing file:', error);
+
+  const processFile = async (file, fileType) => {
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, {
+        type: 'array',
+        cellDates: true,
+        cellNF: true,
+        cellStyles: true
+      });
+
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(firstSheet);
+
+      switch(fileType) {
+        case 'total':
+          setTotalData(data);
+          break;
+        case 'products':
+          setProductsData(data);
+          break;
+        case 'productTotal':
+          setProductTotalData(data);
+          break;
       }
+    } catch (error) {
+      console.error('Error processing file:', error);
+    }
   };
 
-    const calculateStatistics = () => {
-        if (!totalData || !productsData || !productTotalData) return null;
-    
-        const totalSales = productTotalData.reduce((sum, item) => sum + (item['商品交易总额 (₱)'] || 0), 0);
-      return {
-          总览数据: {
-              总计页面浏览量: totalData.reduce((sum, item) => sum + item['页面浏览次数'], 0),
-              总计访客数: totalData.reduce((sum, item) => sum + item['商品访客数'], 0),
-              总计订单数: totalData.reduce((sum, item) => sum + item['订单数'], 0),
-               平均转化率: (totalData.reduce((sum, item) => sum + parseFloat(item['转化率'] || 0), 0) / totalData.length).toFixed(2) + '%',
-          },
-          商品总体数据: {
-                总曝光用户数: productsData.reduce((sum, item) => sum + item['曝光用户数'], 0),
-               总点击人数: productsData.reduce((sum, item) => sum + item['点击人数'], 0),
-              总加车人数: productsData.reduce((sum, item) => sum + item['加车人数'], 0),
-                总支付人数: productsData.reduce((sum, item) => sum + item['支付人数'], 0),
-          },
-           抽样商品数据: {
-               总商品数: productTotalData.length,
-               有订单商品数: productTotalData.filter(item => item['支付人数'] > 0).length,
-               总成交金额: totalSales.toFixed(2) ,
-           }
-      };
-   };
-  
-    const renderStatistics = () => {
-        const stats = calculateStatistics();
-        if (!stats) return null;
-    
-        return (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {Object.entries(stats).map(([category, data]) => (
-                    <Card key={category} className="shadow-custom-card">
-                        <CardHeader>
-                            <CardTitle>{category}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <dl className="space-y-2">
-                                {Object.entries(data).map(([key, value]) => (
-                                    <div key={key} className="flex justify-between">
-                                        <dt className="text-sm text-gray-600">{key}:</dt>
-                                        <dd className="text-sm font-semibold">{value}</dd>
-                                    </div>
-                                ))}
-                            </dl>
-                        </CardContent>
-                    </Card>
-                ))}
-            </div>
-        );
+  // 处理预处理后的数据
+  const handleProcessedData = (processedData, fileType) => {
+    switch(fileType) {
+      case 'total':
+        setTotalData(processedData);
+        break;
+      case 'products':
+        setProductsData(processedData);
+        break;
+      case 'productTotal':
+        setProductTotalData(processedData);
+        break;
+    }
+  };
+
+  // 统计数据计算逻辑
+  const calculateStatistics = () => {
+    if (!totalData || !productsData || !productTotalData) return null;
+
+    return {
+      总览数据: {
+        总计页面浏览量: totalData.reduce((sum, item) => sum + item['页面浏览次数'], 0),
+        总计访客数: totalData.reduce((sum, item) => sum + item['商品访客数'], 0),
+        总计订单数: totalData.reduce((sum, item) => sum + item['订单数'], 0),
+        总成交额: totalData.reduce((sum, item) => sum + (parseFloat(item['商品交易总额 (₱)'] || 0)), 0).toFixed(2) + ' ₱',
+      },
+      商品总体数据: {
+        总曝光用户数: productsData.reduce((sum, item) => sum + item['曝光用户数'], 0),
+        总点击人数: productsData.reduce((sum, item) => sum + item['点击人数'], 0),
+        总加车人数: productsData.reduce((sum, item) => sum + item['加车人数'], 0),
+        总支付人数: productsData.reduce((sum, item) => sum + item['支付人数'], 0),
+      },
+      抽样商品数据: {
+        总商品数: productTotalData.length,
+        有订单商品数: productTotalData.filter(item => item['支付人数'] > 0).length,
+        总成交金额: totalSales.toFixed(2),
+      }
     };
+  };
+
+  // 渲染统计数据
+  const renderStatistics = () => {
+    const stats = calculateStatistics();
+    if (!stats) return null;
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {Object.entries(stats).map(([category, data]) => (
+          <Card key={category} className="shadow-custom-card">
+            <CardHeader>
+              <CardTitle>{category}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <dl className="space-y-2">
+                {Object.entries(data).map(([key, value]) => (
+                  <div key={key} className="flex justify-between">
+                    <dt className="text-sm text-gray-600">{key}:</dt>
+                    <dd className="text-sm font-semibold">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  };
   const renderTotalMetricsChart = () => {
     if (!totalData || !totalData.length) return null;
 
@@ -333,96 +322,122 @@ const TikTokAnalytics = () => {
 
   return (
     <div className="container mx-auto px-4 flex flex-col min-h-screen">
-       <header className="bg-white py-4 shadow-md">
-             <div className="container mx-auto px-4 flex items-center justify-center">
-                  <h1 className="text-3xl font-bold">TikTok数据分析工具</h1>
-               </div>
-               <div className="container mx-auto px-4 flex justify-center">
-                   <img src="/header.gif" alt="header" className="block max-h-32 mx-auto mt-2 loading-lazy"/>
-               </div>
-       </header>
+      <header className="bg-white py-4 shadow-md">
+        <div className="container mx-auto px-4 flex items-center justify-center">
+          <h1 className="text-3xl font-bold">TikTok数据分析工具</h1>
+        </div>
+      </header>
+
       <div className="flex flex-col flex-1">
+        {/* 导航栏 */}
         <div className="sticky top-0 bg-white z-10 pb-4 border-b">
           <div className="flex space-x-4 mb-4 justify-center">
             <button
-              className={`px-4 py-2 rounded-lg ${activeTab === 'charts'
-                ? 'bg-blue-500 text-white'
-                : 'bg-gray-100 hover:bg-gray-200'}`}
+              className={`px-4 py-2 rounded-lg ${
+                activeTab === 'charts'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-100 hover:bg-gray-200'
+              }`}
               onClick={() => setActiveTab('charts')}
             >
               数据图表
             </button>
             <button
-              className={`px-4 py-2 rounded-lg ${activeTab === 'stats'
-                ? 'bg-blue-500 text-white'
-                : 'bg-gray-100 hover:bg-gray-200'}`}
+              className={`px-4 py-2 rounded-lg ${
+                activeTab === 'stats'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-100 hover:bg-gray-200'
+              }`}
               onClick={() => setActiveTab('stats')}
             >
               统计数据
             </button>
+            <button
+              className={`px-4 py-2 rounded-lg ${
+                activeTab === 'preprocess'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-100 hover:bg-gray-200'
+              }`}
+              onClick={() => setActiveTab('preprocess')}
+            >
+              数据预处理
+            </button>
           </div>
         </div>
 
+        {/* 文件上传区域 */}
         <div className="grid gap-6 mb-8 mt-4">
-          <Card className="shadow-custom-card">
-            <CardHeader>
-              <CardTitle>上传文件</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">总体数据文件:</label>
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={(e) => processFile(e.target.files[0], 'total')}
-                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 
-                         file:rounded-md file:border-0 file:text-sm file:font-semibold
-                         file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                />
-              </div>
+          {activeTab !== 'preprocess' && (
+            <Card className="shadow-custom-card">
+              <CardHeader>
+                <CardTitle>上传文件</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">总体数据文件:</label>
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={(e) => processFile(e.target.files[0], 'total')}
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 
+                           file:rounded-md file:border-0 file:text-sm file:font-semibold
+                           file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-2">商品数据文件:</label>
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={(e) => processFile(e.target.files[0], 'products')}
-                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 
-                         file:rounded-md file:border-0 file:text-sm file:font-semibold
-                         file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                />
-              </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">商品数据文件:</label>
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={(e) => processFile(e.target.files[0], 'products')}
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 
+                           file:rounded-md file:border-0 file:text-sm file:font-semibold
+                           file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-2">抽样商品数据文件:</label>
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={(e) => processFile(e.target.files[0], 'productTotal')}
-                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 
-                         file:rounded-md file:border-0 file:text-sm file:font-semibold
-                         file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-          {activeTab === 'charts' && (
-            <>
-              {renderTotalMetricsChart()}
-              {renderProductsConversionChart()}
-              {renderProductTotalChart()}
-            </>
+                <div>
+                  <label className="block text-sm font-medium mb-2">抽样商品数据文件:</label>
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={(e) => processFile(e.target.files[0], 'productTotal')}
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 
+                           file:rounded-md file:border-0 file:text-sm file:font-semibold
+                           file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                  />
+                </div>
+              </CardContent>
+            </Card>
           )}
+        </div>
+
+        {/* 根据当前标签显示相应内容 */}
+        {activeTab === 'charts' && (
+          <>
+            {renderTotalMetricsChart()}
+            {renderProductsConversionChart()}
+            {renderProductTotalChart()}
+          </>
+        )}
 
         {activeTab === 'stats' && renderStatistics()}
+
+        {activeTab === 'preprocess' && (
+          <DataPreprocessor 
+            onProcessedData={handleProcessedData}
+          />
+        )}
       </div>
+
       <footer className="bg-gray-100 py-4 mt-8">
         <div className="container mx-auto px-4 text-center">
-            <p className="text-sm text-gray-500">
-                © {new Date().getFullYear()} TikTok数据分析工具. All rights reserved.
-            </p>
-          </div>
-        </footer>
+          <p className="text-sm text-gray-500">
+            © {new Date().getFullYear()} TikTok数据分析工具. All rights reserved.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 };
