@@ -3,6 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import * as XLSX from 'xlsx';
 import DataPreprocessor from './DataPreprocessor'; // 导入数据预处理组件
+import AboutPage from './AboutPage'; //导入其他页面组件
 
 const TikTokAnalytics = () => {
   const [totalData, setTotalData] = useState(null);
@@ -775,12 +776,22 @@ const TikTokAnalytics = () => {
             >
               数据预处理
             </button>
+            <button
+              className={`px-4 py-2 rounded-lg ${
+                activeTab === 'others'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-100 hover:bg-gray-200'
+              }`}
+              onClick={() => setActiveTab('others')}
+            >
+              其他
+            </button>
           </div>
         </div>
 
         {/* 文件上传区域 */}
         <div className="grid gap-6 mb-8 mt-4">
-          {activeTab !== 'preprocess' && (
+          {activeTab !== 'preprocess' && activeTab !== 'others' && (
             <Card className="shadow-custom-card">
               <CardHeader>
                 <CardTitle className="flex justify-between items-center">
@@ -856,6 +867,7 @@ const TikTokAnalytics = () => {
             onProcessedData={handleProcessedData}
           />
         )}
+        {activeTab === 'others' && <AboutPage />}
       </div>
 
       <footer className="bg-gray-100 py-4 mt-8">
