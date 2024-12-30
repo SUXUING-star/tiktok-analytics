@@ -284,9 +284,8 @@ const TikTokAnalytics = () => {
                   <Tooltip />
                   <Bar dataKey="页面浏览" fill="#4096ff" />
                   <Bar dataKey="访客" fill="#52c41a" />
-                  <Bar dataKey="成交额" fill="#722ed1" />
                   <Bar dataKey="订单" fill="#fa8c16" />
-                  
+                  <Bar dataKey="成交额" fill="#722ed1" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
