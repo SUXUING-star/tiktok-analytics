@@ -10,7 +10,14 @@ const TikTokAnalytics = () => {
   const [productTotalData, setProductTotalData] = useState(null);
   const [activeTab, setActiveTab] = useState('charts');
   const [autoPreprocess, setAutoPreprocess] = useState(true); // 添加自动预处理状态 // 'charts', 'stats', 或 'preprocess'
-
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [barSizes, setBarSizes] = useState({
+    totalMetrics: 20,
+    productsConversion: 20,
+    productsRate: 20,
+    sampleConversion: 20,
+    sampleRate: 20
+  });
   // 颜色常量
   const COLORS = {
     blue: '#4096ff',
@@ -63,7 +70,7 @@ const TikTokAnalytics = () => {
           return;
         }
 
-        newRow[key] = value;
+        newRow[key] = value
       });
       return newRow;
     });
@@ -322,6 +329,63 @@ const TikTokAnalytics = () => {
       </div>
     );
   };
+  // 下载图表为图片的函数
+  const downloadChart = (chartId, fileName) => {
+    const svg = document.querySelector(`#${chartId} svg`);
+    if (!svg) return;
+
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+
+    img.onload = () => {
+      canvas.width = svg.clientWidth;
+      canvas.height = svg.clientHeight;
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+      
+      const link = document.createElement('a');
+      link.download = `${fileName}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    };
+
+     // 使用 encodeURIComponent 对 SVG 数据进行 URL 编码，然后进行 base64 编码
+    const encodedSvgData = btoa(unescape(encodeURIComponent(svgData)));
+    img.src = 'data:image/svg+xml;base64,' + encodedSvgData;
+  };
+
+  // 渲染控制按钮组
+  const renderControls = (chartId, currentSize, onChange, onDownload) => (
+    <div className="flex items-center space-x-4 mb-4">
+      <div className="flex items-center space-x-2">
+        <span className="text-sm">柱形大小：</span>
+        <input
+          type="range"
+          min="10"
+          max="50"
+          value={currentSize}
+          onChange={(e) => onChange(parseInt(e.target.value))}
+          className="w-32"
+        />
+      </div>
+      <button
+        onClick={onDownload}
+        className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+      >
+        下载图表
+      </button>
+    </div>
+  );
+
+  const renderChartAnnotation = (text) => (
+    <div className="text-sm text-gray-600 mt-1">
+      {text}
+    </div>
+  );
+
   const renderTotalMetricsChart = () => {
     if (!totalData || !totalData.length) return null;
 
@@ -332,25 +396,38 @@ const TikTokAnalytics = () => {
       '订单数': item['订单数']
     })).reverse();
 
+    // 计算图表宽度
+    const minBarWidth = barSizes.totalMetrics * 4; // 考虑到有4个系列
+    const calculatedWidth = Math.max(chartData.length * minBarWidth, 800);
+
     return (
       <Card className="w-full mb-6 shadow-custom-card">
         <CardHeader>
-          <CardTitle>总体数据文件</CardTitle>
+            <CardTitle>数据总览转化</CardTitle>
+          {renderChartAnnotation("日期")}
         </CardHeader>
-        <CardContent>
-          <div className="h-[400px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} barSize={20}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="页面浏览次数" fill={COLORS.blue} name="页面浏览次数" />
-                <Bar dataKey="商品访客数" fill={COLORS.green} name="商品访客数" />
-                <Bar dataKey="订单数" fill={COLORS.orange} name="订单数" />
-              </BarChart>
-            </ResponsiveContainer>
+        <CardContent className="relative">
+          {renderControls(
+            'totalMetricsChart',
+            barSizes.totalMetrics,
+            (size) => setBarSizes(prev => ({ ...prev, totalMetrics: size })),
+            () => downloadChart('totalMetricsChart', '数据总览转化')
+          )}
+          <div className="h-[400px] overflow-x-auto">
+            <div style={{ width: `${calculatedWidth}px`, height: "100%" }} id="totalMetricsChart">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} barSize={barSizes.totalMetrics}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="页面浏览次数" fill={COLORS.blue} name="页面浏览次数" />
+                  <Bar dataKey="商品访客数" fill={COLORS.green} name="商品访客数" />
+                  <Bar dataKey="订单数" fill={COLORS.orange} name="订单数" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -376,16 +453,30 @@ const TikTokAnalytics = () => {
             '加车到成交': (item['加车到成交转化率'] !== undefined) ? (parseFloat(item['加车到成交转化率']) * 100) : 0
         })).reverse();
 
+         // 计算图表宽度
+        const minBarWidth = barSizes.productsConversion * 4; // 考虑到有4个系列
+        const calculatedWidth = Math.max(conversionData.length * minBarWidth, 800);
+
+        const minBarWidthRate = barSizes.productsRate * 4; // 考虑到有4个系列
+        const calculatedWidthRate = Math.max(rateData.length * minBarWidthRate, 800);
         return (
             <>
                 <Card className="w-full mb-6 shadow-custom-card">
                     <CardHeader>
-                        <CardTitle>商品数据转化数据</CardTitle>
+                       <CardTitle>商品数据转化数据</CardTitle>
+                      {renderChartAnnotation("日期")}
                     </CardHeader>
-                    <CardContent>
-                        <div className="h-[400px]">
+                    <CardContent className="relative">
+                      {renderControls(
+                        'productsConversionChart',
+                        barSizes.productsConversion,
+                        (size) => setBarSizes(prev => ({ ...prev, productsConversion: size })),
+                        () => downloadChart('productsConversionChart', '商品数据转化数据')
+                      )}
+                      <div className="h-[400px] overflow-x-auto">
+                      <div style={{ width: `${calculatedWidth}px`, height: "100%" }} id="productsConversionChart">
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={conversionData} barSize={20}>
+                                <BarChart data={conversionData} barSize={barSizes.productsConversion}>
                                     <CartesianGrid strokeDasharray="3 3" />
                                     <XAxis dataKey="date" />
                                     <YAxis />
@@ -397,17 +488,26 @@ const TikTokAnalytics = () => {
                                     <Bar dataKey="支付人数" fill={COLORS.orange} name="支付人数" />
                                 </BarChart>
                             </ResponsiveContainer>
+                         </div>
                         </div>
                     </CardContent>
                 </Card>
                 <Card className="w-full mb-6 shadow-custom-card">
                     <CardHeader>
                         <CardTitle>商品转化率数据</CardTitle>
+                      {renderChartAnnotation("日期")}
                     </CardHeader>
-                    <CardContent>
-                        <div className="h-[400px]">
+                    <CardContent className="relative">
+                      {renderControls(
+                        'productsRateChart',
+                        barSizes.productsRate,
+                        (size) => setBarSizes(prev => ({ ...prev, productsRate: size })),
+                        () => downloadChart('productsRateChart', '商品转化率数据')
+                      )}
+                       <div className="h-[400px] overflow-x-auto">
+                         <div style={{ width: `${calculatedWidthRate}px`, height: "100%" }} id="productsRateChart">
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={rateData} barSize={20}>
+                                <BarChart data={rateData} barSize={barSizes.productsRate}>
                                     <CartesianGrid strokeDasharray="3 3" />
                                     <XAxis dataKey="date" />
                                     <YAxis tickFormatter={(value) => `${value}%`} />
@@ -419,7 +519,8 @@ const TikTokAnalytics = () => {
                                     <Bar dataKey="加车到成交" fill={COLORS.orange} name="加车到成交转化率" />
                                 </BarChart>
                             </ResponsiveContainer>
-                        </div>
+                           </div>
+                       </div>
                     </CardContent>
                 </Card>
             </>
@@ -430,73 +531,170 @@ const TikTokAnalytics = () => {
     const renderProductTotalChart = () => {
       if (!productTotalData || !productTotalData.length) return null;
     
-      const totalSKUs = productTotalData.length;
-      const skusWithOrders = productTotalData.filter(item => item['支付人数'] > 0).length;
+      // 使用正确的字段名称
+      const processedData = productTotalData.map((item, index) => ({
+        ...item,
+        shortName: `商品${index + 1}`,
+        originalName: item['Name of product'],
+        id: item['Product ID']
+      }));
+    
+      const totalSKUs = processedData.length;
+      const skusWithOrders = processedData.filter(item => item['支付人数'] > 0).length;
     
       const pieData = [
         { name: '有订单商品', value: skusWithOrders },
         { name: '无订单商品', value: totalSKUs - skusWithOrders }
       ];
     
-        const rateData = productTotalData.map(item => ({
-            name: item['name'],
-           '曝光到点击转化率': (item['曝光到点击转化率'] !== undefined) ? (parseFloat(item['曝光到点击转化率']) * 100) : 0,
-           '点击到加车转化率': (item['点击到加车转化率'] !== undefined) ? (parseFloat(item['点击到加车转化率']) * 100) : 0,
-           '点击到成交转化率': (item['点击到成交转化率'] !== undefined) ? (parseFloat(item['点击到成交转化率']) * 100) : 0,
-          '加车到成交转化率': (item['加车到成交转化率'] !== undefined) ? (parseFloat(item['加车到成交转化率']) * 100) : 0
-        }));
+      const handleBarClick = (data) => {
+        const product = processedData.find(p => p.shortName === data.name);
+        setSelectedProduct(product);
+      };
+    
+      const rateData = processedData.map(item => ({
+        name: item.shortName,
+        shortName: item.shortName,
+        originalName: item['Name of product'],
+        id: item['Product ID'],
+        '曝光到点击转化率': (item['曝光到点击转化率'] !== undefined) ? (parseFloat(item['曝光到点击转化率']) * 100) : 0,
+        '点击到加车转化率': (item['点击到加车转化率'] !== undefined) ? (parseFloat(item['点击到加车转化率']) * 100) : 0,
+        '点击到成交转化率': (item['点击到成交转化率'] !== undefined) ? (parseFloat(item['点击到成交转化率']) * 100) : 0,
+        '加车到成交转化率': (item['加车到成交转化率'] !== undefined) ? (parseFloat(item['加车到成交转化率']) * 100) : 0
+      }));
+    
+      const CustomTooltip = ({ active, payload, label }) => {
+        if (active && payload && payload.length) {
+          const product = processedData.find(p => p.shortName === label);
+          return (
+            <div className="bg-white p-4 border rounded shadow-lg">
+              <p className="font-semibold">商品名称: {product.originalName}</p>
+              <p className="text-sm text-gray-600">商品ID: {product.id}</p>
+              {payload.map((entry, index) => (
+                <p key={index} className="text-sm">
+                  {entry.name}: {entry.value.toFixed(2)}
+                  {entry.name.includes('转化率') ? '%' : ''}
+                </p>
+              ))}
+            </div>
+          );
+        }
+        return null;
+      };
+    
+      // 设置图表滚动的配置
+      const chartConfig = {
+        margin: { top: 20, right: 30, left: 100, bottom: 50 }
+      };
+    
+      // 根据数据量计算合适的图表宽度，确保每个商品有足够的显示空间
+      const minBarWidth = 60; // 每个商品柱形的最小宽度
+      const calculatedWidth = Math.max(processedData.length * minBarWidth, 800); // 确保最小宽度为800px
+
+      const minBarWidthRate = 60; // 每个商品柱形的最小宽度
+      const calculatedWidthRate = Math.max(processedData.length * minBarWidthRate, 800);
+    
       return (
         <>
           <Card className="w-full mb-6 shadow-custom-card">
             <CardHeader>
-              <CardTitle>抽样商品转化数据</CardTitle>
+              <CardTitle>抽样商品转化</CardTitle>
+                 {renderChartAnnotation("单个商品（一定期间内）汇总数据")}
             </CardHeader>
-            <CardContent>
-              <div className="h-[400px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={productTotalData} barSize={20}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="曝光人数" fill={COLORS.blue} name="曝光人数" />
-                    <Bar dataKey="点击人数" fill={COLORS.green} name="点击人数" />
-                    <Bar dataKey="加车人数" fill={COLORS.purple} name="加车人数" />
-                    <Bar dataKey="支付人数" fill={COLORS.orange} name="支付人数" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-    
-          {/* 修改这部分，直接使用文件中的转化率列 */}
-          <Card className="w-full mb-6 shadow-custom-card">
-            <CardHeader>
-              <CardTitle>转化率数据</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[400px]">
-                <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={rateData} barSize={20}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis tickFormatter={(value) => `${value}%`} />
-                       <Tooltip formatter={(value) => `${value.toFixed(2)}%`} />
-                        <Legend />
-                        <Bar dataKey="曝光到点击转化率" fill={COLORS.blue} name="曝光到点击转化率" />
-                        <Bar dataKey="点击到加车转化率" fill={COLORS.green} name="点击到加车转化率" />
-                        <Bar dataKey="点击到成交转化率" fill={COLORS.purple} name="点击到成交转化率" />
-                        <Bar dataKey="加车到成交转化率" fill={COLORS.orange} name="加车到成交转化率" />
+            <CardContent className="relative">
+               {renderControls(
+                'sampleProductsChart',
+                barSizes.sampleConversion,
+                (size) => setBarSizes(prev => ({ ...prev, sampleConversion: size })),
+                () => downloadChart('sampleProductsChart', '抽样商品转化')
+              )}
+              <div className="h-[400px] overflow-x-auto">
+                <div style={{ width: `${calculatedWidth}px`, height: "100%" }} id="sampleProductsChart">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart 
+                      data={processedData}
+                      barSize={barSizes.sampleConversion} // 使用 sampleConversion 的 barSize
+                      margin={chartConfig.margin}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis 
+                        dataKey="shortName"
+                        interval={0}
+                        angle={0}
+                        tick={{ fontSize: 12 }}
+                      />
+                      <YAxis />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Legend />
+                      <Bar dataKey="曝光人数" fill={COLORS.blue} name="曝光人数" onClick={handleBarClick} />
+                      <Bar dataKey="点击人数" fill={COLORS.green} name="点击人数" onClick={handleBarClick} />
+                      <Bar dataKey="加车人数" fill={COLORS.purple} name="加车人数" onClick={handleBarClick} />
+                      <Bar dataKey="支付人数" fill={COLORS.orange} name="支付人数" onClick={handleBarClick} />
                     </BarChart>
-                </ResponsiveContainer>
+                  </ResponsiveContainer>
+                </div>
               </div>
+    
+              {selectedProduct && (
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                  <h3 className="font-semibold mb-2">商品详情：</h3>
+                  <p>商品名称：{selectedProduct.originalName}</p>
+                  <p>商品ID：{selectedProduct.id}</p>
+                  <button 
+                    onClick={() => setSelectedProduct(null)}
+                    className="mt-2 px-3 py-1 bg-gray-200 rounded-md hover:bg-gray-300 text-sm"
+                  >
+                    关闭详情
+                  </button>
+                </div>
+              )}
             </CardContent>
           </Card>
     
           <Card className="w-full mb-6 shadow-custom-card">
             <CardHeader>
-              <CardTitle>商品订单占比</CardTitle>
+              <CardTitle>抽样商品的转化率数据</CardTitle>
+              {renderChartAnnotation("单个商品（一定期间内）汇总数据")}
+            </CardHeader>
+            <CardContent className="relative">
+               {renderControls(
+                'sampleRateChart',
+                barSizes.sampleRate,
+                 (size) => setBarSizes(prev => ({ ...prev, sampleRate: size })),
+                () => downloadChart('sampleRateChart', '抽样商品的转化率数据')
+               )}
+                <div className="h-[400px] overflow-x-auto">
+                   <div style={{ width: `${calculatedWidthRate}px`, height: "100%" }} id="sampleRateChart">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart 
+                            data={rateData}
+                            barSize={barSizes.sampleRate} // 使用 sampleRate 的 barSize
+                            margin={chartConfig.margin}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis 
+                              dataKey="shortName"
+                              interval={0}
+                              angle={0}
+                              tick={{ fontSize: 12 }}
+                            />
+                            <YAxis tickFormatter={(value) => `${value}%`} />
+                            <Tooltip content={<CustomTooltip />} />
+                            <Legend />
+                            <Bar dataKey="曝光到点击转化率" fill={COLORS.blue} name="曝光到点击转化率" onClick={handleBarClick} />
+                            <Bar dataKey="点击到加车转化率" fill={COLORS.green} name="点击到加车转化率" onClick={handleBarClick} />
+                            <Bar dataKey="点击到成交转化率" fill={COLORS.purple} name="点击到成交转化率" onClick={handleBarClick} />
+                            <Bar dataKey="加车到成交转化率" fill={COLORS.orange} name="加车到成交转化率" onClick={handleBarClick} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                   </div>
+                 </div>
+            </CardContent>
+          </Card>
+    
+          <Card className="w-full mb-6 shadow-custom-card">
+            <CardHeader>
+              <CardTitle>抽样商品中出单占比</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-[400px]">
