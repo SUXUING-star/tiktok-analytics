@@ -226,8 +226,9 @@ const TikTokAnalytics = () => {
         name: '总览漏斗',
         '页面浏览': stats.总览数据.总计页面浏览量,
         '访客': stats.总览数据.总计访客数,
-        '订单': stats.总览数据.总计订单数,
-        '成交额': parseFloat(stats.总览数据.总成交额.replace(' ₱', ''))
+        '成交额': parseFloat(stats.总览数据.总成交额.replace(' ₱', '')),
+        '订单': stats.总览数据.总计订单数
+        
       }
     ];
   
