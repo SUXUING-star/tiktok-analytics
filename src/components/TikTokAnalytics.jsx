@@ -8,7 +8,8 @@ const TikTokAnalytics = () => {
   const [totalData, setTotalData] = useState(null);
   const [productsData, setProductsData] = useState(null);
   const [productTotalData, setProductTotalData] = useState(null);
-  const [activeTab, setActiveTab] = useState('charts'); // 'charts', 'stats', 或 'preprocess'
+  const [activeTab, setActiveTab] = useState('charts');
+  const [autoPreprocess, setAutoPreprocess] = useState(true); // 添加自动预处理状态 // 'charts', 'stats', 或 'preprocess'
 
   // 颜色常量
   const COLORS = {
@@ -25,8 +26,69 @@ const TikTokAnalytics = () => {
     return `${date.getMonth() + 1}/${date.getDate()}`;
   };
 
+  // 添加数据预处理函数
+  const preprocessData = (data, fileName) => {
+    // 确定起始行
+    let headerRow = 0;
+    const fileNameLower = fileName.toLowerCase();
+    if (fileNameLower.includes('overview') || fileNameLower.includes('business performance')) {
+      headerRow = 4;
+    } else if (fileNameLower.includes('product card traffic') || fileNameLower.includes('products card list')) {
+      headerRow = 2;
+    }
+
+    // 处理数据
+    return data.map(row => {
+      const newRow = {};
+      Object.entries(row).forEach(([key, value]) => {
+        // 处理 NaN、null、undefined、空字符串
+        if (value === null || value === undefined || value === '' || 
+            (typeof value === 'number' && isNaN(value)) ||
+            value === 'NaN' || value === 'nan' || value === '#N/A') {
+          newRow[key] = 0;
+          return;
+        }
+
+        // 处理百分比
+        if (typeof value === 'string' && value.includes('%')) {
+          const percentValue = parseFloat(value.replace('%', ''));
+          newRow[key] = isNaN(percentValue) ? 0 : percentValue / 100;
+          return;
+        }
+        
+        // 处理数值字符串
+        if (typeof value === 'string' && !isNaN(value)) {
+          const numValue = parseFloat(value);
+          newRow[key] = isNaN(numValue) ? 0 : numValue;
+          return;
+        }
+
+        newRow[key] = value;
+      });
+      return newRow;
+    });
+  };
+
+  const getFileConfig = (fileName) => {
+    // 转换为小写并移除可能的时间戳和扩展名
+    const cleanName = fileName.toLowerCase().replace(/[_-]\d+.*\.xlsx?$/, '');
+    
+    if (cleanName.includes('overview') || cleanName.includes('business performance')) {
+      return { type: 'total', headerRow: 4, newName: 'total.xlsx' }; // 从第5行开始
+    }
+    if (cleanName.includes('product card traffic')) {
+      return { type: 'producttotal', headerRow: 2, newName: 'producttotal.xlsx' }; // 从第3行开始
+    }
+    if (cleanName.includes('products card list')) {
+      return { type: 'products', headerRow: 2, newName: 'products.xlsx' }; // 从第3行开始
+    }
+    return { type: 'unknown', headerRow: 0, newName: 'unknown.xlsx' };
+  };
+
   const processFile = async (file, fileType) => {
     try {
+      const { headerRow } = getFileConfig(file.name);
+      
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, {
         type: 'array',
@@ -36,17 +98,71 @@ const TikTokAnalytics = () => {
       });
 
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      const data = XLSX.utils.sheet_to_json(firstSheet);
+      let data = XLSX.utils.sheet_to_json(firstSheet, {
+        range: headerRow // 设置起始行
+      });
+
+      // 处理数据中的NaN和特殊值
+      data = data.map(row => {
+        const newRow = {};
+        Object.entries(row).forEach(([key, value]) => {
+          // 处理各种特殊值
+          if (value === null || value === undefined || value === '' || 
+              (typeof value === 'number' && isNaN(value)) ||
+              value === 'NaN' || value === 'nan' || value === '#N/A') {
+            newRow[key] = 0;
+            return;
+          }
+
+          // 处理百分比
+          if (typeof value === 'string' && value.includes('%')) {
+            const percentValue = parseFloat(value.replace('%', ''));
+            newRow[key] = isNaN(percentValue) ? 0 : percentValue / 100;
+            return;
+          }
+
+          // 处理数值字符串
+          if (typeof value === 'string' && !isNaN(value)) {
+            const numValue = parseFloat(value);
+            newRow[key] = isNaN(numValue) ? 0 : numValue;
+            return;
+          }
+
+          newRow[key] = value;
+        });
+        return newRow;
+      });
+
+      // 如果启用了自动预处理，对数据进行处理
+      if (autoPreprocess) {
+        data = preprocessData(data, file.name);
+      }
+
+      // 更新状态前再次确保所有数值都是有效的数字
+      const validateData = (data) => {
+        return data.map(item => {
+          const validItem = {};
+          Object.entries(item).forEach(([key, value]) => {
+            // 如果是数值类型的字段，确保是有效的数字
+            if (typeof value === 'number') {
+              validItem[key] = isNaN(value) ? 0 : value;
+            } else {
+              validItem[key] = value;
+            }
+          });
+          return validItem;
+        });
+      };
 
       switch(fileType) {
         case 'total':
-          setTotalData(data);
+          setTotalData(validateData(data));
           break;
         case 'products':
-          setProductsData(data);
+          setProductsData(validateData(data));
           break;
         case 'productTotal':
-          setProductTotalData(data);
+          setProductTotalData(validateData(data));
           break;
       }
     } catch (error) {
@@ -88,8 +204,7 @@ const TikTokAnalytics = () => {
       },
       抽样商品数据: {
         总商品数: productTotalData.length,
-        有订单商品数: productTotalData.filter(item => item['支付人数'] > 0).length,
-        总成交金额: totalSales.toFixed(2),
+        有订单商品数: productTotalData.filter(item => item['支付人数'] > 0).length
       }
     };
   };
@@ -373,7 +488,21 @@ const TikTokAnalytics = () => {
           {activeTab !== 'preprocess' && (
             <Card className="shadow-custom-card">
               <CardHeader>
-                <CardTitle>上传文件</CardTitle>
+                <CardTitle className="flex justify-between items-center">
+                  <span>上传文件</span>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="autoPreprocess"
+                      checked={autoPreprocess}
+                      onChange={(e) => setAutoPreprocess(e.target.checked)}
+                      className="rounded border-gray-300 text-blue-500 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                    />
+                    <label htmlFor="autoPreprocess" className="text-sm font-normal">
+                      自动预处理数据
+                    </label>
+                  </div>
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
