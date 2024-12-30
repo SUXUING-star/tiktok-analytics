@@ -188,13 +188,19 @@ const TikTokAnalytics = () => {
   // 统计数据计算逻辑
   const calculateStatistics = () => {
     if (!totalData || !productsData || !productTotalData) return null;
-
+  
+    // 使用模糊搜索找到商品交易总额字段
+    const findAmountField = (item) => {
+      const key = Object.keys(item).find(k => k.toLowerCase().includes('商品交易总额'));
+      return key ? (parseFloat(item[key]) || 0) : 0;
+    };
+  
     return {
       总览数据: {
         总计页面浏览量: totalData.reduce((sum, item) => sum + item['页面浏览次数'], 0),
         总计访客数: totalData.reduce((sum, item) => sum + item['商品访客数'], 0),
         总计订单数: totalData.reduce((sum, item) => sum + item['订单数'], 0),
-        总成交额: totalData.reduce((sum, item) => sum + (parseFloat(item['商品交易总额 (₱)'] || 0)), 0).toFixed(2) + ' ₱',
+        总成交额: totalData.reduce((sum, item) => sum + findAmountField(item), 0).toFixed(2) + ' ₱',
       },
       商品总体数据: {
         总曝光用户数: productsData.reduce((sum, item) => sum + item['曝光用户数'], 0),
@@ -213,26 +219,106 @@ const TikTokAnalytics = () => {
   const renderStatistics = () => {
     const stats = calculateStatistics();
     if (!stats) return null;
-
+  
+    // 为总览数据准备漏斗图数据
+    const overviewFunnelData = [
+      {
+        name: '总览漏斗',
+        '页面浏览': stats.总览数据.总计页面浏览量,
+        '访客': stats.总览数据.总计访客数,
+        '订单': stats.总览数据.总计订单数,
+        '成交额': parseFloat(stats.总览数据.总成交额.replace(' ₱', ''))
+      }
+    ];
+  
+    // 为商品数据准备漏斗图数据
+    const productFunnelData = [
+      {
+        name: '商品漏斗',
+        '曝光': stats.商品总体数据.总曝光用户数,
+        '点击': stats.商品总体数据.总点击人数,
+        '加购': stats.商品总体数据.总加车人数,
+        '支付': stats.商品总体数据.总支付人数
+      }
+    ];
+  
     return (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {Object.entries(stats).map(([category, data]) => (
-          <Card key={category} className="shadow-custom-card">
-            <CardHeader>
-              <CardTitle>{category}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <dl className="space-y-2">
-                {Object.entries(data).map(([key, value]) => (
-                  <div key={key} className="flex justify-between">
-                    <dt className="text-sm text-gray-600">{key}:</dt>
-                    <dd className="text-sm font-semibold">{value}</dd>
-                  </div>
-                ))}
-              </dl>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="space-y-6">
+        {/* 原有的统计卡片 */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {Object.entries(stats).map(([category, data]) => (
+            <Card key={category} className="shadow-custom-card">
+              <CardHeader>
+                <CardTitle>{category}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <dl className="space-y-2">
+                  {Object.entries(data).map(([key, value]) => (
+                    <div key={key} className="flex justify-between">
+                      <dt className="text-sm text-gray-600">{key}:</dt>
+                      <dd className="text-sm font-semibold">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+  
+        {/* 总览数据漏斗图 */}
+        <Card className="shadow-custom-card">
+          <CardHeader>
+            <CardTitle>总览数据漏斗</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  layout="vertical"
+                  data={overviewFunnelData}
+                  margin={{ top: 20, right: 30, left: 100, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" />
+                  <YAxis dataKey="name" type="category" />
+                  <Tooltip />
+                  <Bar dataKey="页面浏览" fill="#4096ff" />
+                  <Bar dataKey="访客" fill="#52c41a" />
+                  <Bar dataKey="成交额" fill="#722ed1" />
+                  <Bar dataKey="订单" fill="#fa8c16" />
+                  
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+  
+        {/* 商品数据漏斗图 */}
+        <Card className="shadow-custom-card">
+          <CardHeader>
+            <CardTitle>商品数据漏斗</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  layout="vertical"
+                  data={productFunnelData}
+                  margin={{ top: 20, right: 30, left: 100, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" />
+                  <YAxis dataKey="name" type="category" />
+                  <Tooltip />
+                  <Bar dataKey="曝光" fill="#4096ff" />
+                  <Bar dataKey="点击" fill="#52c41a" />
+                  <Bar dataKey="加购" fill="#fa8c16" />
+                  <Bar dataKey="支付" fill="#722ed1" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   };
@@ -284,12 +370,12 @@ const TikTokAnalytics = () => {
     
         const rateData = productsData.map(item => ({
           date: formatDate(item['时间']),
-          '曝光到点击': (parseFloat(item['曝光到点击转化率']) * 100) || 0,
-          '点击到加车': (parseFloat(item['点击到加车转化率'])* 100) || 0,
-          '点击到成交': (parseFloat(item['点击到成交转化率'])* 100) || 0,
-          '加车到成交': (parseFloat(item['加车到成交转化率'])* 100) || 0
+            '曝光到点击': (item['曝光到点击转化率'] !== undefined) ? (parseFloat(item['曝光到点击转化率']) * 100) : 0,
+            '点击到加车': (item['点击到加车转化率'] !== undefined) ? (parseFloat(item['点击到加车转化率']) * 100) : 0,
+            '点击到成交': (item['点击到成交转化率'] !== undefined) ? (parseFloat(item['点击到成交转化率']) * 100) : 0,
+            '加车到成交': (item['加车到成交转化率'] !== undefined) ? (parseFloat(item['加车到成交转化率']) * 100) : 0
         })).reverse();
-    
+
         return (
             <>
                 <Card className="w-full mb-6 shadow-custom-card">
@@ -325,7 +411,7 @@ const TikTokAnalytics = () => {
                                     <CartesianGrid strokeDasharray="3 3" />
                                     <XAxis dataKey="date" />
                                     <YAxis tickFormatter={(value) => `${value}%`} />
-                                     <Tooltip formatter={(value) => `${value.toFixed(2)}%`} />
+                                    <Tooltip formatter={(value) => `${value.toFixed(2)}%`} />
                                     <Legend />
                                     <Bar dataKey="曝光到点击" fill={COLORS.blue} name="曝光到点击转化率" />
                                     <Bar dataKey="点击到加车" fill={COLORS.green} name="点击到加车转化率" />
@@ -341,99 +427,110 @@ const TikTokAnalytics = () => {
     };
 
 
-  const renderProductTotalChart = () => {
-    if (!productTotalData || !productTotalData.length) return null;
-  
-    const totalSKUs = productTotalData.length;
-    const skusWithOrders = productTotalData.filter(item => item['支付人数'] > 0).length;
-  
-    const pieData = [
-      { name: '有订单商品', value: skusWithOrders },
-      { name: '无订单商品', value: totalSKUs - skusWithOrders }
-    ];
-  
-    return (
+    const renderProductTotalChart = () => {
+      if (!productTotalData || !productTotalData.length) return null;
+    
+      const totalSKUs = productTotalData.length;
+      const skusWithOrders = productTotalData.filter(item => item['支付人数'] > 0).length;
+    
+      const pieData = [
+        { name: '有订单商品', value: skusWithOrders },
+        { name: '无订单商品', value: totalSKUs - skusWithOrders }
+      ];
+    
+        const rateData = productTotalData.map(item => ({
+            name: item['name'],
+           '曝光到点击转化率': (item['曝光到点击转化率'] !== undefined) ? (parseFloat(item['曝光到点击转化率']) * 100) : 0,
+           '点击到加车转化率': (item['点击到加车转化率'] !== undefined) ? (parseFloat(item['点击到加车转化率']) * 100) : 0,
+           '点击到成交转化率': (item['点击到成交转化率'] !== undefined) ? (parseFloat(item['点击到成交转化率']) * 100) : 0,
+          '加车到成交转化率': (item['加车到成交转化率'] !== undefined) ? (parseFloat(item['加车到成交转化率']) * 100) : 0
+        }));
+      return (
         <>
           <Card className="w-full mb-6 shadow-custom-card">
             <CardHeader>
               <CardTitle>抽样商品转化数据</CardTitle>
             </CardHeader>
-             <CardContent>
+            <CardContent>
               <div className="h-[400px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={productTotalData} barSize={20}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Bar dataKey="曝光人数" fill={COLORS.blue} name="曝光人数" />
-                      <Bar dataKey="点击人数" fill={COLORS.green} name="点击人数" />
-                      <Bar dataKey="加车人数" fill={COLORS.purple} name="加车人数" />
-                        <Bar dataKey="支付人数" fill={COLORS.orange} name="支付人数" />
-                    </BarChart>
-                  </ResponsiveContainer>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={productTotalData} barSize={20}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="曝光人数" fill={COLORS.blue} name="曝光人数" />
+                    <Bar dataKey="点击人数" fill={COLORS.green} name="点击人数" />
+                    <Bar dataKey="加车人数" fill={COLORS.purple} name="加车人数" />
+                    <Bar dataKey="支付人数" fill={COLORS.orange} name="支付人数" />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
-              </CardContent>
+            </CardContent>
           </Card>
+    
+          {/* 修改这部分，直接使用文件中的转化率列 */}
           <Card className="w-full mb-6 shadow-custom-card">
-                <CardHeader>
-                  <CardTitle>转化率数据</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-[400px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={productTotalData} barSize={20}>
+            <CardHeader>
+              <CardTitle>转化率数据</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[400px]">
+                <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={rateData} barSize={20}>
                         <CartesianGrid strokeDasharray="3 3" />
-                         <XAxis dataKey="name" />
+                        <XAxis dataKey="name" />
                         <YAxis tickFormatter={(value) => `${value}%`} />
-                       <Tooltip formatter={(value) => `${(value*100).toFixed(2)}%`} />
+                       <Tooltip formatter={(value) => `${value.toFixed(2)}%`} />
                         <Legend />
-                        <Bar dataKey="曝光到点击" fill={COLORS.blue} name="曝光到点击转化率" />
-                        <Bar dataKey="点击到加车" fill={COLORS.green} name="点击到加车转化率" />
-                         <Bar dataKey="加车到成交" fill={COLORS.orange} name="加车到成交转化率" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-              </CardContent>
-            </Card>
-            <Card className="w-full mb-6 shadow-custom-card">
-              <CardHeader>
-                <CardTitle>商品订单占比</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[400px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={pieData}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({name, percent}) => `${name}: ${(percent * 100).toFixed(1)}%`}
-                        outerRadius={120}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {pieData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={[COLORS.blue, COLORS.orange][index]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="text-center mt-4">
-                  <p className="text-sm text-gray-600">总商品数: {totalSKUs}</p>
-                  <p className="text-sm text-gray-600">有订单商品数: {skusWithOrders}</p>
-                   <p className="text-sm text-gray-600">无订单商品数: {totalSKUs- skusWithOrders}</p>
-                </div>
-              </CardContent>
-            </Card>
+                        <Bar dataKey="曝光到点击转化率" fill={COLORS.blue} name="曝光到点击转化率" />
+                        <Bar dataKey="点击到加车转化率" fill={COLORS.green} name="点击到加车转化率" />
+                        <Bar dataKey="点击到成交转化率" fill={COLORS.purple} name="点击到成交转化率" />
+                        <Bar dataKey="加车到成交转化率" fill={COLORS.orange} name="加车到成交转化率" />
+                    </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+    
+          <Card className="w-full mb-6 shadow-custom-card">
+            <CardHeader>
+              <CardTitle>商品订单占比</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[400px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({name, percent}) => `${name}: ${(percent * 100).toFixed(1)}%`}
+                      outerRadius={120}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {pieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={[COLORS.blue, COLORS.orange][index]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="text-center mt-4">
+                <p className="text-sm text-gray-600">总商品数: {totalSKUs}</p>
+                <p className="text-sm text-gray-600">有订单商品数: {skusWithOrders}</p>
+                <p className="text-sm text-gray-600">无订单商品数: {totalSKUs - skusWithOrders}</p>
+              </div>
+            </CardContent>
+          </Card>
         </>
-    );
-  };
+      );
+    };
 
   return (
     <div className="container mx-auto px-4 flex flex-col min-h-screen">
